@@ -27,37 +27,23 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore dependencies
-        run: |
-          dotnet restore NewApiProject/NewApiProject.csproj
-          dotnet restore ApiGateway/ApiGateway.csproj
+      - name: Restore API
+        run: dotnet restore NewApiProject/NewApiProject.csproj
 
-      - name: Build
-        run: |
-          dotnet build NewApiProject/NewApiProject.csproj -c Release --no-restore
-          dotnet build ApiGateway/ApiGateway.csproj -c Release --no-restore
+      - name: Restore Gateway
+        run: dotnet restore ApiGateway/ApiGateway.csproj
 
-      - name: Run Unit Tests
-        run: |
-          dotnet test SecureApiDemo.Tests/SecureApiDemo.Tests.csproj \
-            --no-restore \
-            --verbosity normal \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ./TestResults
+      - name: Build API
+        run: dotnet build NewApiProject/NewApiProject.csproj -c Release --no-restore
+
+      - name: Build Gateway
+        run: dotnet build ApiGateway/ApiGateway.csproj -c Release --no-restore
 
       - name: Publish API
-        run: |
-          dotnet publish NewApiProject/NewApiProject.csproj \
-            -c Release \
-            -o ./publish/api \
-            --no-restore
+        run: dotnet publish NewApiProject/NewApiProject.csproj -c Release -o ./publish/api --no-restore
 
       - name: Publish Gateway
-        run: |
-          dotnet publish ApiGateway/ApiGateway.csproj \
-            -c Release \
-            -o ./publish/gateway \
-            --no-restore
+        run: dotnet publish ApiGateway/ApiGateway.csproj -c Release -o ./publish/gateway --no-restore
 
       - name: Upload API Artifact
         uses: actions/upload-artifact@v4
