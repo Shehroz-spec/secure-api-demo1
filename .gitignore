@@ -1,0 +1,25 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build outputs
+**/bin/
+**/obj/
+
+# Logs
+**/logs/
+
+# Sensitive files
+**/local.settings.json
+**/appsettings.Development.json
+**/appsettings.Production.json
+
+# Docker
+**/.dockerignore
+
+# Test results
+TestResults/
+
+# Environment
+**/.env

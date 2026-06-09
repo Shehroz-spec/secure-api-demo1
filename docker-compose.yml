@@ -1,0 +1,75 @@
+services:
+
+  # ── SQL Server ──────────────────────────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: secure-api-sqlserver
+    environment:
+      SA_PASSWORD: "SecurePass123!"
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Express"
+    ports:
+      - "1434:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - secure-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SecurePass123!' -Q 'SELECT 1' -No"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  api:
+    build:
+      context: ./NewApiProject
+      dockerfile: Dockerfile
+    container_name: secure-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=SecureApiDb;User Id=sa;Password=SecurePass123!;TrustServerCertificate=True;"
+      Jwt__Key: "ThisIsAVerySecretKeyForJwtToken123!"
+      Jwt__Issuer: "SecureApiDemo"
+      Jwt__Audience: "SecureApiDemoUsers"
+      Jwt__AccessTokenExpiryMinutes: "60"
+      Jwt__RefreshTokenExpiryDays: "7"
+      TwoFactor__AppName: "SecureApiDemo"
+    ports:
+      - "8080:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - secure-api-network
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./ApiGateway
+      dockerfile: Dockerfile
+    container_name: secure-api-gateway
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:5000"
+      Jwt__Key: "ThisIsAVerySecretKeyForJwtToken123!"
+      Jwt__Issuer: "SecureApiDemo"
+      Jwt__Audience: "SecureApiDemoUsers"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - api
+    networks:
+      - secure-api-network
+    restart: unless-stopped
+    volumes:
+      - ./ApiGateway/ocelot.json:/app/ocelot.json:ro
+
+networks:
+  secure-api-network:
+    driver: bridge
+
+volumes:
+  sqlserver_data:
+    driver: local

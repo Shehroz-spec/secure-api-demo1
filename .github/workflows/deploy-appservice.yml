@@ -1,0 +1,126 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  API_APP_NAME: 'secure-api-demo-shehroz'
+  GATEWAY_APP_NAME: 'secure-api-gateway-shehroz'
+  RESOURCE_GROUP: 'SecureApiDemo-RG'
+
+jobs:
+
+  # ── Job 1: Build & Test ─────────────────────────────────────────────────────
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: |
+          dotnet restore NewApiProject/NewApiProject.csproj
+          dotnet restore ApiGateway/ApiGateway.csproj
+
+      - name: Build
+        run: |
+          dotnet build NewApiProject/NewApiProject.csproj -c Release --no-restore
+          dotnet build ApiGateway/ApiGateway.csproj -c Release --no-restore
+
+      - name: Run Unit Tests
+        run: |
+          dotnet test SecureApiDemo.Tests/SecureApiDemo.Tests.csproj \
+            --no-restore \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults
+
+      - name: Publish API
+        run: |
+          dotnet publish NewApiProject/NewApiProject.csproj \
+            -c Release \
+            -o ./publish/api \
+            --no-restore
+
+      - name: Publish Gateway
+        run: |
+          dotnet publish ApiGateway/ApiGateway.csproj \
+            -c Release \
+            -o ./publish/gateway \
+            --no-restore
+
+      - name: Upload API Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-publish
+          path: ./publish/api
+
+      - name: Upload Gateway Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-publish
+          path: ./publish/gateway
+
+  # ── Job 2: Deploy API ───────────────────────────────────────────────────────
+  deploy-api:
+    name: Deploy API to App Service
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Download API Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-publish
+          path: ./publish/api
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy API to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.API_APP_NAME }}
+          resource-group-name: ${{ env.RESOURCE_GROUP }}
+          package: ./publish/api
+
+  # ── Job 3: Deploy Gateway ───────────────────────────────────────────────────
+  deploy-gateway:
+    name: Deploy Gateway to App Service
+    runs-on: ubuntu-latest
+    needs: deploy-api
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Download Gateway Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gateway-publish
+          path: ./publish/gateway
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Gateway to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.GATEWAY_APP_NAME }}
+          resource-group-name: ${{ env.RESOURCE_GROUP }}
+          package: ./publish/gateway
