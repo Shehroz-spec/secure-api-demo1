@@ -12,7 +12,7 @@ using SecureApiDemo.Data;
 namespace NewApiProject.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260610085950_InitPostgreSQL")]
+    [Migration("20260610090637_InitPostgreSQL")]
     partial class InitPostgreSQL
     {
         /// <inheritdoc />
