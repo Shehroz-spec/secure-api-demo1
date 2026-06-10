@@ -190,10 +190,12 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        // ✅ This creates the migrations table and runs all migrations
+        // ✅ EnsureDeleted only in development — never in production!
+        if (app.Environment.IsDevelopment())
+            await db.Database.EnsureDeletedAsync();
+
         await db.Database.MigrateAsync();
 
-        // Seed roles
         foreach (var role in new[] { "Admin", "User" })
             if (!await roleManager.RoleExistsAsync(role))
                 await roleManager.CreateAsync(new IdentityRole(role));
