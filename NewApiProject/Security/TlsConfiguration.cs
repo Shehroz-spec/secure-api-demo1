@@ -58,13 +58,10 @@ namespace SecureApiDemo.Security;
 
 public static class TlsConfiguration
 {
-    /// <summary>
-    /// Add to Program.cs — configures Kestrel with TLS settings.
-    /// </summary>
     public static WebApplicationBuilder ConfigureTls(this WebApplicationBuilder builder)
     {
-        // ✅ Only configure Kestrel HTTPS in development
-        // In production (Render/Azure) — HTTPS is handled by the platform
+        // Only configure Kestrel HTTPS in development
+        // In production — Render/Azure handle HTTPS termination
         if (builder.Environment.IsDevelopment())
         {
             builder.WebHost.ConfigureKestrel(options =>
@@ -89,29 +86,14 @@ public static class TlsConfiguration
 
     public static WebApplication UseTlsSecurity(this WebApplication app)
     {
-        // Only redirect HTTP → HTTPS in production
-        // In Docker/Render HTTP is fine inside container
+        // HSTS only in production
         if (!app.Environment.IsDevelopment())
         {
             app.UseHsts();
         }
 
+        // Redirect HTTP to HTTPS
         app.UseHttpsRedirection();
-        return app;
-    }
-
-    /// <summary>
-    /// Add to Program.cs middleware pipeline — enforces HTTPS and HSTS.
-    /// </summary>
-    public static WebApplication UseTlsSecurity(this WebApplication app)
-    {
-        // Redirect all HTTP to HTTPS
-        app.UseHttpsRedirection();
-
-        // HSTS — tells browsers to always use HTTPS for 1 year
-        // includeSubDomains — applies to all subdomains
-        // preload — submit to browser preload lists
-        app.UseHsts();
 
         return app;
     }
