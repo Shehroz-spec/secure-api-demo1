@@ -187,10 +187,24 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    await db.Database.MigrateAsync();
-    foreach (var role in new[] { "Admin", "User" })
-        if (!await roleManager.RoleExistsAsync(role))
-            await roleManager.CreateAsync(new IdentityRole(role));
+
+    try
+    {
+        // ✅ This creates the migrations table and runs all migrations
+        await db.Database.MigrateAsync();
+
+        // Seed roles
+        foreach (var role in new[] { "Admin", "User" })
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole(role));
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider
+            .GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Migration failed: {Message}", ex.Message);
+        throw;
+    }
 }
 
 // ─── Middleware Pipeline (ORDER MATTERS) ──────────────────────────────────────
