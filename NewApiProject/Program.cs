@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using SecureApiDemo.Data;
 using SecureApiDemo.Middleware;
 using SecureApiDemo.Models;
+using SecureApiDemo.Security;
 using SecureApiDemo.Services;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
@@ -13,20 +14,27 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ─── SQL Server + ASP.NET Identity ───────────────────────────────────────────
+// ─── PostgreSQL/SQL Server + ASP.NET Identity ───────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    if (connectionString!.Contains("Host="))
+        options.UseNpgsql(connectionString);   // Render PostgreSQL
+    else
+        options.UseSqlServer(connectionString); // Local SQL Server
+});
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
-    // Password policy
+    options.ClaimsIdentity.UserIdClaimType = JwtRegisteredClaimNames.Sub;
+    options.ClaimsIdentity.UserNameClaimType = JwtRegisteredClaimNames.Sub;
+
     options.Password.RequireDigit = true;
     options.Password.RequireLowercase = true;
     options.Password.RequireUppercase = true;
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequiredLength = 8;
 
-    // Lockout: 5 failed attempts → 15-min lockout
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.AllowedForNewUsers = true;
@@ -58,7 +66,16 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
         ClockSkew = TimeSpan.Zero
     };
-});
+})
+.AddCookie("Cookies", options =>
+{
+    // Cookie for SSO state management
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
+})
+;
 
 // ─── Authorization Policies ───────────────────────────────────────────────────
 builder.Services.AddAuthorization(options =>
@@ -67,27 +84,6 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("UserOrAdmin", policy => policy.RequireRole("User", "Admin"));
 });
 
-builder.Services.AddIdentityCore<ApplicationUser>(options =>
-{
-    // ✅ Add this — tells Identity which claim to use for user ID
-    options.ClaimsIdentity.UserIdClaimType = JwtRegisteredClaimNames.Sub;
-    options.ClaimsIdentity.UserNameClaimType = JwtRegisteredClaimNames.Sub;
-
-    options.Password.RequireDigit = true;
-    options.Password.RequireLowercase = true;
-    options.Password.RequireUppercase = true;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequiredLength = 8;
-
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-    options.Lockout.MaxFailedAccessAttempts = 5;
-    options.Lockout.AllowedForNewUsers = true;
-
-    options.User.RequireUniqueEmail = true;
-})
-.AddRoles<IdentityRole>()
-.AddEntityFrameworkStores<AppDbContext>()
-.AddDefaultTokenProviders();
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 builder.Services.AddRateLimiter(options =>
@@ -137,35 +133,86 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+// SSO Services
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<ISsoService, SsoService>();
 
+// Session for SSO state
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(10);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+
+
+
+// TLS Configuration
+builder.ConfigureTls();
+
+// Zero Trust Health Check
+builder.Services.AddHealthChecks()
+    .AddCheck<ZeroTrustHealthCheck>("zero-trust");
+// mTLS Client Factory (for Gateway → API calls)
+builder.Services.AddSingleton<MtlsHttpClientFactory>();
 var app = builder.Build();
-
 // ─── Auto-create DB + seed roles ─────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-
     await db.Database.MigrateAsync();
-
     foreach (var role in new[] { "Admin", "User" })
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
 }
 
-// ─── Middleware Pipeline ──────────────────────────────────────────────────────
+// ─── Middleware Pipeline (ORDER MATTERS) ──────────────────────────────────────
+// 1. Swagger
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// 2. HTTPS redirect
 app.UseHttpsRedirection();
 
+// 3. TLS Security (HSTS)
+app.UseTlsSecurity();
 
-app.UseRateLimiter();
+// 4. Session (for SSO)
+app.UseSession();
+
+// 5. Cryptographic Security (A02) — no auth needed
+app.UseMiddleware<CryptographicSecurityMiddleware>();
+
+// 6. Injection Protection (A03) — no auth needed
+app.UseMiddleware<InjectionProtectionMiddleware>();
+
+// 7. Security Logging — log all requests including unauthenticated
 app.UseMiddleware<SecurityLoggingMiddleware>();
 
+// 8. Rate Limiting — before auth to stop brute force
+app.UseRateLimiter();
+
+// 9. Authentication — establish identity
 app.UseAuthentication();
+
+// 10. Authorization — check permissions
 app.UseAuthorization();
 
-// Security headers
+// 11. Access Control (A01) — AFTER auth so user is known
+app.UseMiddleware<AccessControlMiddleware>();
+
+// 12. OWASP Security Headers (A04, A05, A10) — AFTER auth
+app.UseMiddleware<OwaspSecurityHeadersMiddleware>();
+
+// 13. Zero Trust — AFTER auth so claims are available
+app.UseMiddleware<ZeroTrustMiddleware>();
+
+// 14. mTLS — AFTER auth
+app.UseMiddleware<MtlsValidationMiddleware>();
+
+// 15. Security headers
 app.Use(async (context, next) =>
 {
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
@@ -176,6 +223,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// 16. Health checks + Controllers
+app.MapHealthChecks("/health");
 app.MapControllers();
 app.Run();
-
