@@ -63,29 +63,41 @@ public static class TlsConfiguration
     /// </summary>
     public static WebApplicationBuilder ConfigureTls(this WebApplicationBuilder builder)
     {
-        builder.WebHost.ConfigureKestrel(options =>
+        // ✅ Only configure Kestrel HTTPS in development
+        // In production (Render/Azure) — HTTPS is handled by the platform
+        if (builder.Environment.IsDevelopment())
         {
-            // ── HTTPS endpoint ────────────────────────────────────────────────
-            options.ConfigureHttpsDefaults(httpsOptions =>
+            builder.WebHost.ConfigureKestrel(options =>
             {
-                // Enforce TLS 1.2 minimum — TLS 1.0 and 1.1 are vulnerable
-                httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
-
-                // Client certificate mode for mTLS (see mTLS section)
-                // httpsOptions.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
-            });
-
-            // ── Listen on HTTPS only ──────────────────────────────────────────
-            options.ListenLocalhost(7028, listenOptions =>
-            {
-                listenOptions.UseHttps(httpsOptions =>
+                options.ConfigureHttpsDefaults(httpsOptions =>
                 {
                     httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
                 });
+
+                options.ListenLocalhost(7028, listenOptions =>
+                {
+                    listenOptions.UseHttps(httpsOptions =>
+                    {
+                        httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+                    });
+                });
             });
-        });
+        }
 
         return builder;
+    }
+
+    public static WebApplication UseTlsSecurity(this WebApplication app)
+    {
+        // Only redirect HTTP → HTTPS in production
+        // In Docker/Render HTTP is fine inside container
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseHsts();
+        }
+
+        app.UseHttpsRedirection();
+        return app;
     }
 
     /// <summary>
