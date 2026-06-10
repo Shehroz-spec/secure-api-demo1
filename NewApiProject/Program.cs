@@ -17,11 +17,27 @@ var builder = WebApplication.CreateBuilder(args);
 // ─── PostgreSQL/SQL Server + ASP.NET Identity ───────────────────────────────────────────
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    if (connectionString!.Contains("Host="))
-        options.UseNpgsql(connectionString);   // Render PostgreSQL
+    var connectionString = builder.Configuration
+        .GetConnectionString("DefaultConnection");
+
+    if (connectionString!.StartsWith("postgresql://") ||
+        connectionString.StartsWith("postgres://"))
+    {
+        var uri = new Uri(connectionString);
+        var npgsqlConnection = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={uri.UserInfo.Split(':')[0]};Password={uri.UserInfo.Split(':')[1]};SSL Mode=Require;Trust Server Certificate=true";
+        options.UseNpgsql(npgsqlConnection);
+    }
+    else if (connectionString.Contains("Host="))
+    {
+        options.UseNpgsql(connectionString)
+               // ✅ Add this line
+               .ConfigureWarnings(w => w.Ignore(
+                   Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    }
     else
-        options.UseSqlServer(connectionString); // Local SQL Server
+    {
+        options.UseSqlServer(connectionString);
+    }
 });
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
