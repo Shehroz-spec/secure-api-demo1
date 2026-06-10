@@ -18,28 +18,37 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var connectionString = builder.Configuration
-        .GetConnectionString("DefaultConnection");
+        .GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Connection string not configured.");
 
-    if (connectionString!.StartsWith("postgresql://") ||
+    if (connectionString.StartsWith("postgresql://") ||
         connectionString.StartsWith("postgres://"))
     {
+        // ✅ Handle postgresql:// URL format from Render
         var uri = new Uri(connectionString);
-        var npgsqlConnection = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={uri.UserInfo.Split(':')[0]};Password={uri.UserInfo.Split(':')[1]};SSL Mode=Require;Trust Server Certificate=true";
-        options.UseNpgsql(npgsqlConnection);
+        var host = uri.Host;
+        var port = uri.Port > 0 ? uri.Port : 5432;
+        var database = uri.AbsolutePath.TrimStart('/');
+        var username = uri.UserInfo.Split(':')[0];
+        var password = uri.UserInfo.Split(':')[1];
+
+        var npgsql = $"Host={host};Port={port};Database={database};" +
+                     $"Username={username};Password={password};" +
+                     $"SSL Mode=Require;Trust Server Certificate=true";
+
+        options.UseNpgsql(npgsql);
     }
     else if (connectionString.Contains("Host="))
     {
-        options.UseNpgsql(connectionString)
-               // ✅ Add this line
-               .ConfigureWarnings(w => w.Ignore(
-                   Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+        // ✅ Handle Host= format (already converted)
+        options.UseNpgsql(connectionString);
     }
     else
     {
+        // ✅ SQL Server for local development
         options.UseSqlServer(connectionString);
     }
 });
-
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
     options.ClaimsIdentity.UserIdClaimType = JwtRegisteredClaimNames.Sub;
