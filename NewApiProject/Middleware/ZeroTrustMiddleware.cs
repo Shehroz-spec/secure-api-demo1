@@ -52,12 +52,7 @@ namespace SecureApiDemo.Security;
 /// 4. Enforce least privilege (minimum required access)
 /// 5. Log everything for audit
 ///
-/// Interview talking point:
-/// "I implemented Zero Trust by validating every request across
-///  five dimensions — identity via JWT, device via mTLS certificates,
-///  network via IP allowlists, application via RBAC policies, and
-///  data via field-level access controls. No request is trusted
-///  implicitly — even internal service calls require verification."
+
 /// </summary>
 public class ZeroTrustMiddleware
 {

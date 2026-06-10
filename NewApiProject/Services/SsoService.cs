@@ -26,11 +26,7 @@ public interface ISsoService
 /// 8. API issues our own JWT token
 /// 9. User is now logged in with both SSO and local JWT
 ///
-/// Interview talking point:
-/// "The SSO flow uses OAuth2 Authorization Code flow — the most secure
-///  OAuth2 grant type. After Microsoft authentication succeeds, we issue
-///  our own JWT token so the rest of the API works exactly the same
-///  whether the user logged in locally or via Microsoft SSO."
+
 /// </summary>
 public class SsoService : ISsoService
 {

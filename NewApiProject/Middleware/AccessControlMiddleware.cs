@@ -13,10 +13,7 @@ namespace SecureApiDemo.Middleware;
 /// 3. Admin endpoints are strictly role-gated
 /// 4. JWT claims are validated on every request
 ///
-/// Interview talking point:
-/// "I implemented deny-by-default access control — every endpoint requires
-///  explicit authorization. Users cannot access other users' data because
-///  we validate the user ID from the JWT claim against the requested resource."
+
 /// </summary>
 public class AccessControlMiddleware
 {

@@ -46,12 +46,7 @@ namespace SecureApiDemo.Security;
 /// - ApiGateway → NewApiProject
 /// - Azure Functions → NewApiProject
 ///
-/// Interview talking point:
-/// "I implemented mTLS for service-to-service communication. The API Gateway
-///  presents a client certificate when calling the downstream API. The API
-///  validates the certificate thumbprint against a known allowlist — ensuring
-///  only trusted services can call internal endpoints, even if they have a
-///  valid JWT token."
+
 /// </summary>
 public class MtlsValidationMiddleware
 {

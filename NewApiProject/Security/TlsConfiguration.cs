@@ -55,11 +55,7 @@ namespace SecureApiDemo.Security;
 /// - HSTS headers
 /// - HTTP → HTTPS redirect
 ///
-/// Interview talking point:
-/// "I configured Kestrel to enforce TLS 1.2 minimum with TLS 1.3 preferred,
-///  disabled weak cipher suites, and added HSTS headers with a 1-year max-age.
-///  This prevents downgrade attacks and ensures all data is encrypted in transit."
-/// </summary>
+
 public static class TlsConfiguration
 {
     /// <summary>

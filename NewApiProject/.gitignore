@@ -5,3 +5,17 @@ appsettings.Development.json
 .vs/
 .idea/
 *.suo
+appsettings.Development.json 
+.gitignore is a file, not a PowerShell command.
+
+To see the file:
+
+Get-Content .gitignore
+
+To edit it:
+
+notepad .gitignore
+
+Or open it in Visual Studio.
+
+Then add:

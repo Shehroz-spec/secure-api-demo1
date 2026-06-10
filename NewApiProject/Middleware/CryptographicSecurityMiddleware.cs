@@ -11,10 +11,7 @@ namespace SecureApiDemo.Middleware;
 /// 4. Secure cookie settings
 /// 5. Remove server version headers that expose technology stack
 ///
-/// Interview talking point:
-/// "I enforce HTTPS-only communication with HSTS headers, preventing
-///  downgrade attacks. I also scan request URLs for accidentally exposed
-///  credentials and block them before they reach the API."
+
 /// </summary>
 public class CryptographicSecurityMiddleware
 {

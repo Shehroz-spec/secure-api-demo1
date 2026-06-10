@@ -17,12 +17,7 @@ namespace SecureApiDemo.Middleware;
 /// Note: EF Core parameterized queries are the PRIMARY defense.
 /// This middleware is a secondary defense-in-depth layer.
 ///
-/// Interview talking point:
-/// "I use EF Core parameterized queries as the primary SQL injection
-///  defense. As a secondary layer I have middleware that detects common
-///  injection patterns in incoming requests and blocks them before they
-///  reach the controllers — defense in depth."
-/// </summary>
+
 public class InjectionProtectionMiddleware
 {
     private readonly RequestDelegate _next;

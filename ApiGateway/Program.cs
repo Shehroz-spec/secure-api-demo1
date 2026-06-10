@@ -99,6 +99,7 @@ app.UseCors("GatewayPolicy");
 
 app.UseMiddleware<RequestTransformationMiddleware>();
 app.UseMiddleware<GatewayLoggingMiddleware>();
+app.UseMiddleware<GatewayOwaspMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
