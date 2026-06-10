@@ -23,3 +23,5 @@ TestResults/
 
 # Environment
 **/.env
+/certs
+
